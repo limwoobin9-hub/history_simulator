@@ -1,4 +1,5 @@
-import { newGame, advanceMonth, applyChoice, setPolicy, takeAction, getEvent, dateLabel, COUNTRIES, isValidSave } from './engine.js';
+import { newGame, advanceMonth, applyChoice, setPolicy, takeAction, getEvent, dateLabel, COUNTRIES, isValidSave, upgradeSave } from './engine.js';
+import { REGIONS, REGION_BY_ID, OWNER_LABELS, OWNER_COLORS, ownerOf, transferRegion } from './territory.js';
 import { currentUser, logout, register, login, saveCloud, loadCloud, listCloud } from './cloud.js';
 
 const $ = selector => document.querySelector(selector);
@@ -11,6 +12,11 @@ let view = 'overview';
 let modal = null;
 let toastTimer;
 let selectedCountry = 'GER';
+let selectedRegion = null;
+let mapMode = 'province';
+let mapBox = { x: 0, y: 0, w: 510, h: 333 };
+const mapPath = rings => rings.map(ring => 'M' + ring.map(([lon, lat]) => `${((lon + 12) * 10).toFixed(1)},${((72 - lat) * 9).toFixed(1)}`).join('L') + 'Z').join('');
+const regionPaths = REGIONS.map(region => mapPath(region[3]));
 let cloudSlots = [];
 const STORAGE_KEY = 'state-of-history-v1-slot-';
 
@@ -28,17 +34,13 @@ function chart(key, label, unit = '') {
 }
 function statPanel() { return `<div class="stats-grid">${metric('국고', money(game.treasury), '월간 수지 ' + signed(game.income - game.expenses) + '억 ₣', game.treasury < 4 ? 'negative' : '')}${metric('국내총생산', `${game.gdp.toFixed(1)}억 ₣`, '월간 성장률 ' + signed(game.growth) + '%')}${metric('정치 안정도', `${game.stability.toFixed(0)}%`, '정부 운영의 기반', game.stability < 35 ? 'negative' : '')}${metric('세계 긴장도', `${game.tension.toFixed(0)}%`, '유럽 전역', game.tension > 50 ? 'negative' : '')}</div>`; }
 
-// The map is a schematic strategic overview. Its borders are deliberately illustrative.
-const mapAreas = [
-  ['GBR', '39,13 69,6 83,34 66,47 60,82 32,63', 47, 34],
-  ['FRA', '108,67 153,62 170,84 162,125 119,141 93,113', 121, 98],
-  ['GER', '169,49 217,42 238,69 220,104 169,95 158,75', 188, 70],
-  ['ITA', '179,113 214,107 220,126 238,155 236,191 222,177 204,151 183,147', 199, 128],
-  ['ESP', '56,142 113,146 117,170 91,185 56,177', 77, 160],
-  ['SOV', '259,19 379,14 397,67 376,102 313,109 274,73', 321, 55]
-];
 function mapHTML() {
-  return `<div class="map-frame"><div class="map-top"><span>EUROPE · 1936</span><span class="map-key"><i></i> 선택한 국가</span></div><svg class="europe-map" viewBox="0 0 420 210" role="img" aria-label="주요 유럽 국가의 개략적인 위치를 보여주는 전략 지도"><defs><pattern id="map-grid" width="18" height="18" patternUnits="userSpaceOnUse"><path d="M18 0H0V18" fill="none" stroke="#283e49" stroke-width=".55"/></pattern></defs><rect width="420" height="210" fill="url(#map-grid)"/><path d="M0 173Q35 158 48 199M23 38L0 60M395 113L419 132" fill="none" stroke="#37515a" stroke-width="2"/>${mapAreas.map(([id, poly, x, y]) => `<g class="map-country ${selectedCountry === id ? 'selected' : ''}" data-country="${id}" role="button" tabindex="0" aria-label="${COUNTRIES[id].name} 선택"><polygon points="${poly}" fill="${COUNTRIES[id].color}"/><text x="${x}" y="${y}" text-anchor="middle">${COUNTRIES[id].name}</text></g>`).join('')}</svg><div class="map-bottom"><span>국가를 선택해 외교 관계를 확인하세요</span><span>개략도 · 실제 국경 아님</span></div></div>`;
+  const date = `${game.year}-${String(game.month).padStart(2, '0')}-01`;
+  const historicalURL = `https://embed.openhistoricalmap.org/#map=4/49/14&date=${date}&layer=O`;
+  const region = REGION_BY_ID.get(selectedRegion);
+  const caption = region ? `${region[1]} · ${OWNER_LABELS[ownerOf(game, region)] || ownerOf(game, region)}` : '지역을 클릭해 소유권을 확인하고 변경하세요';
+  const provinceMap = `<svg class="province-map" viewBox="${mapBox.x} ${mapBox.y} ${mapBox.w} ${mapBox.h}" role="img" aria-label="유럽의 지역별 소유권 지도" preserveAspectRatio="xMidYMid meet"><rect x="-1000" y="-1000" width="2500" height="2500" fill="#142f3d"/>${REGIONS.map((item, i) => `<path class="map-region ${item[0] === selectedRegion ? 'selected' : ''}" data-region="${item[0]}" tabindex="0" role="button" aria-label="${escapeHTML(item[1])}, ${escapeHTML(OWNER_LABELS[ownerOf(game,item)] || ownerOf(game,item))}" d="${regionPaths[i]}" fill="${OWNER_COLORS[ownerOf(game,item)] || '#758b93'}" fill-rule="evenodd"><title>${escapeHTML(item[1])} · ${escapeHTML(OWNER_LABELS[ownerOf(game,item)] || ownerOf(game,item))}</title></path>`).join('')}</svg><div class="map-zoom"><button data-map-zoom="in" aria-label="지도 확대">+</button><button data-map-zoom="out" aria-label="지도 축소">−</button><button data-map-zoom="reset" aria-label="지도 원래대로">⌖</button></div>`;
+  return `<div class="map-frame"><div class="map-top"><span>EUROPE · ${dateLabel(game)}</span><div class="map-switch"><button data-map-mode="province" class="${mapMode === 'province' ? 'active' : ''}">소유권</button><button data-map-mode="historical" class="${mapMode === 'historical' ? 'active' : ''}">역사 지도</button></div></div><div class="map-stage">${mapMode === 'province' ? provinceMap : `<iframe class="historical-map" title="${dateLabel(game)} OpenHistoricalMap 역사 지도" src="${historicalURL}" loading="lazy" referrerpolicy="no-referrer"></iframe>`}</div><div class="map-bottom"><span>${escapeHTML(caption)}</span>${mapMode === 'historical' ? `<a href="${historicalURL}" target="_blank" rel="noopener noreferrer">원본 열기 ↗</a>` : '<span>휠로 확대 · 끌어서 이동</span>'}</div>${mapMode === 'province' && region ? `<div class="territory-edit"><label>지역 소유국 <select data-region-owner="${region[0]}">${Object.entries(OWNER_LABELS).map(([id, name]) => `<option value="${id}" ${ownerOf(game,region) === id ? 'selected' : ''}>${name}</option>`).join('')}</select></label><small>소유권 변경은 게임 저장 데이터에 기록됩니다.</small></div>` : ''}<p class="map-source">소유권 지도: Natural Earth 현대 행정구역 기반. 1936년의 세부 국경과 일치하지 않는 곳이 있습니다. 역사 지도: <a href="https://www.openhistoricalmap.org/" target="_blank" rel="noopener noreferrer">OpenHistoricalMap</a>의 날짜별 자료.</p></div>`;
 }
 function countryBrief() { const c = COUNTRIES[selectedCountry]; return `<div class="country-brief"><div class="country-heading"><span class="country-flag">${c.flag}</span><div><span class="eyebrow">선택 국가</span><h3>${c.name}</h3></div></div><div class="detail-row"><span>정체</span><strong>${c.government}</strong></div><div class="detail-row"><span>프랑스와의 관계</span><strong class="${game.relations[selectedCountry] < 0 ? 'negative' : 'positive'}">${game.relations[selectedCountry] > 0 ? '+' : ''}${game.relations[selectedCountry]}</strong></div><button class="secondary full" data-action="diplomacy" data-target="${selectedCountry}">외교 사절 파견 <small>정치력 12</small></button></div>`; }
 function overview() { return `${sectionTitle('01 / COMMAND ROOM', '공화국 상황실', '국가의 방향을 정하고, 매달 달라지는 지표를 확인하세요.')}${statPanel()}<div class="content-grid"><div>${mapHTML()}<div class="panel alert-panel"><div><span class="eyebrow">다음 결정</span><h3>${game.pendingEvent ? getEvent(game.pendingEvent).title : '시간은 흐르고 있습니다'}</h3><p>${game.pendingEvent ? '역사적 사건의 선택지를 확인하세요.' : '예산을 조정하고, 외교·산업·군사 행동을 준비하세요.'}</p></div><button class="secondary" data-action="${game.pendingEvent ? 'event' : 'next'}">${game.pendingEvent ? '사건 보기' : '다음 달 진행'} →</button></div></div><div>${countryBrief()}<div class="panel mini-panel"><span class="eyebrow">국가 역량</span><div class="mini-stat"><span>정부 지지도 <b>${game.approval.toFixed(0)}%</b></span>${bar(game.approval)}</div><div class="mini-stat"><span>산업 기반 <b>${game.industry.toFixed(0)}</b></span>${bar(game.industry)}</div><div class="mini-stat"><span>정치력 <b>${game.politicalPower.toFixed(0)}</b></span>${bar(game.politicalPower)}</div></div></div></div>`; }
@@ -47,7 +49,7 @@ function economy() { return `${sectionTitle('02 / ECONOMY', '경제 · 국가 �
 function politics() { return `${sectionTitle('03 / POLITICS', '정치 · 사회', '선거, 노동 협상, 국민의 생활이 정부의 지지도를 바꿉니다.')}<div class="stats-grid three">${metric('정부 지지도', `${game.approval.toFixed(0)}%`, '여론')}${metric('안정도', `${game.stability.toFixed(0)}%`, '정국')}${metric('정치력', game.politicalPower.toFixed(0), '정책과 외교에 사용')}</div><div class="content-grid"><div class="panel"><div class="panel-title"><h3>내각과 정책</h3><span class="eyebrow">FRANCE · 1936</span></div><div class="detail-row"><span>정치 체제</span><strong>제3공화국</strong></div><div class="detail-row"><span>내각의 방향</span><strong>${game.flags.cabinet === 'reform' ? '노동 개혁' : game.flags.cabinet === 'moderate' ? '재정 균형' : '총선 전'}</strong></div><div class="detail-row"><span>노동 협정</span><strong>${game.flags.matignon === 'signed' ? '마티뇽 협정 체결' : game.flags.matignon === 'limited' ? '제한적 합의' : '협상 전'}</strong></div><div class="detail-row"><span>실업률</span><strong>${game.unemployment.toFixed(1)}%</strong></div><p class="panel-note">정부 지지도가 떨어지면 안정도가 서서히 약해집니다. 복지 지출과 세율을 함께 고려하세요.</p></div><div>${chart('stability', '정치 안정도', '%')}${chart('unemployment', '실업률', '%')}</div></div>`; }
 function military() { return `${sectionTitle('04 / DEFENSE', '군사 · 생산', '예산과 산업력을 통해 장비를 생산하고 신규 사단을 편성하세요.')}<div class="stats-grid three">${metric('육군 사단', `${game.divisions}개`, '신규 편성 가능')}${metric('장비 비축', `${game.equipment.toFixed(0)} 단위`, '매월 자동 생산')}${metric('가용 인력', `${game.manpower.toFixed(0)}천 명`, '편성 때 소모')}</div><div class="content-grid"><div class="panel"><span class="eyebrow">ARMY COMMAND</span><h3>육군 편성</h3><p class="panel-note">장비 8 단위와 가용 인력 12천 명을 소모해 사단 1개를 편성합니다. 국고 2억 ₣이 추가로 필요합니다.</p><div class="formation"><span>프랑스 육군</span><strong>${game.divisions}개 사단</strong><small>장비 비축 ${game.equipment.toFixed(0)} · 가용 인력 ${game.manpower.toFixed(0)}천 명</small></div><button class="primary" data-action="recruit">신규 사단 편성</button></div><div class="panel"><span class="eyebrow">INDUSTRIAL CAPACITY</span><h3>월간 장비 생산</h3><p class="big-number">${Math.max(0, 2 + game.industry * 0.025 + game.militaryBudget * 0.02 - game.divisions * 0.06).toFixed(1)} <small>단위 / 월</small></p>${bar(game.industry)}<p class="panel-note">산업 기반, 군사 예산이 늘면 생산이 증가하고 기존 사단의 유지에 장비가 들어갑니다.</p><button class="secondary" data-view="economy">예산 조정 →</button></div></div>`; }
 function diplomacy() { return `${sectionTitle('05 / DIPLOMACY', '외교 · 유럽 정세', '국가를 선택하고 관계를 살펴보세요. 사절단 파견에는 정치력 12가 필요합니다.')}<div class="content-grid"><div>${mapHTML()}</div><div>${countryBrief()}</div></div><div class="panel section-gap"><h3>국가별 관계</h3><div class="diplomacy-list">${Object.entries(COUNTRIES).filter(([id]) => id !== 'FRA').map(([id, c]) => `<button data-country="${id}" class="diplomacy-row ${id === selectedCountry ? 'current' : ''}"><span>${c.flag} ${c.name}</span><b class="${game.relations[id] < 0 ? 'negative' : 'positive'}">${game.relations[id] >= 0 ? '+' : ''}${game.relations[id]}</b></button>`).join('')}</div></div>`; }
-function chronicle() { return `${sectionTitle('06 / HISTORY', '연대기', '당신의 선택과 사건이 이곳에 기록됩니다.')}<div class="content-grid"><div class="panel"><h3>국가의 기록</h3><div class="timeline">${game.log.map(entry => `<div class="timeline-entry ${entry.type}"><time>${escapeHTML(entry.date)}</time><p>${escapeHTML(entry.text)}</p></div>`).join('')}</div></div><div>${chart('treasury', '국고', '억 ₣')}${chart('gdp', '국내총생산', '억 ₣')}<div class="panel"><span class="eyebrow">SCENARIO NOTES</span><h3>역사와 시뮬레이션</h3><p class="panel-note">역사 사건의 날짜와 배경은 1936년 프랑스를 토대로 구성했습니다. 게임의 수치와 결과는 플레이를 위한 단순화 모델이며 실제 역사 통계나 예측이 아닙니다. 지도는 위치 개략도입니다.</p></div></div></div>`; }
+function chronicle() { return `${sectionTitle('06 / HISTORY', '연대기', '당신의 선택과 사건이 이곳에 기록됩니다.')}<div class="content-grid"><div class="panel"><h3>국가의 기록</h3><div class="timeline">${game.log.map(entry => `<div class="timeline-entry ${entry.type}"><time>${escapeHTML(entry.date)}</time><p>${escapeHTML(entry.text)}</p></div>`).join('')}</div></div><div>${chart('treasury', '국고', '억 ₣')}${chart('gdp', '국내총생산', '억 ₣')}<div class="panel"><span class="eyebrow">SCENARIO NOTES</span><h3>역사와 시뮬레이션</h3><p class="panel-note">역사 사건의 날짜와 배경은 1936년 프랑스를 토대로 구성했습니다. 게임의 수치와 결과는 플레이를 위한 단순화 모델이며 실제 역사 통계나 예측이 아닙니다. 지역 소유권 지도는 현대 행정구역으로 나누어 역사적 변경을 모델링하므로 일부 과거 국경과 차이가 있습니다. 역사 지도 탭은 OpenHistoricalMap의 날짜별 지도를 보여줍니다.</p></div></div></div>`; }
 function rightbar() { $('#world-briefing').innerHTML = `<div class="world-row"><span>세계 긴장도</span><strong class="${game.tension > 50 ? 'negative' : ''}">${game.tension.toFixed(0)}%</strong></div>${bar(game.tension, 'red')}<p class="brief-note">독일의 재무장과 유럽 각국의 정치적 위기가 균형을 흔들고 있습니다.</p><div class="world-row"><span>독일과의 관계</span><strong class="negative">${game.relations.GER}</strong></div><div class="world-row"><span>영국과의 관계</span><strong class="positive">+${game.relations.GBR}</strong></div><div class="world-row"><span>스페인 정세</span><strong>${game.flags.spain ? '내전 발발' : '불안정'}</strong></div>`; $('#recent-log').innerHTML = game.log.slice(0, 5).map(entry => `<div class="recent-entry"><time>${escapeHTML(entry.date)}</time><p>${escapeHTML(entry.text)}</p></div>`).join(''); }
 function showModal() {
   const overlay = $('#overlay');
@@ -72,7 +74,10 @@ function showModal() {
 function render() { $('#top-date').textContent = dateLabel(game); $('#turn-counter').textContent = `TURN ${String(game.turn).padStart(2, '0')}`; $('#next-button').disabled = Boolean(game.pendingEvent); $('#next-button').textContent = game.pendingEvent ? '결정 대기 중' : '다음 달로 진행 →'; $('#account-button').textContent = currentUser() ? '내 계정' : '로그인'; document.querySelectorAll('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.view === view)); $('#workspace').innerHTML = ({ overview, economy, politics, military, diplomacy, chronicle })[view](); rightbar(); showModal(); }
 function next() { if (game.pendingEvent) { modal = 'event'; showModal(); return; } game = advanceMonth(game); render(); }
 document.addEventListener('click', event => {
-  const target = event.target.closest('button,[data-country]'); if (!target) return;
+  const target = event.target.closest('button,[data-country],[data-region]'); if (!target) return;
+  if (target.dataset.mapMode) { mapMode = target.dataset.mapMode; render(); return; }
+  if (target.dataset.mapZoom) { zoomMap(target.dataset.mapZoom); return; }
+  if (target.dataset.region) { selectedRegion = target.dataset.region; const owner = ownerOf(game, REGION_BY_ID.get(selectedRegion)); if (COUNTRIES[owner] && owner !== 'FRA') selectedCountry = owner; render(); return; }
   if (target.dataset.view) { view = target.dataset.view; render(); $('#workspace').focus(); return; }
   if (target.dataset.country) { if (target.dataset.country !== 'FRA') selectedCountry = target.dataset.country; render(); return; }
   if (target.dataset.choice !== undefined) { game = applyChoice(game, Number(target.dataset.choice)); modal = null; render(); toast('결정이 기록되었습니다.'); return; }
@@ -80,30 +85,41 @@ document.addEventListener('click', event => {
   if (target.dataset.openAccount !== undefined) { modal = 'account'; showModal(); return; }
   if (target.dataset.logout !== undefined) { logout(); modal = null; render(); toast('로그아웃했습니다.'); return; }
   if (target.dataset.register !== undefined) { const form = $('#account-form'); if (!form.reportValidity()) return; target.disabled = true; register(form.elements.email.value, form.elements.password.value).then(data => { if (data.access_token) { toast('계정이 생성되었습니다. 로그인하세요.'); } else toast('가입 메일을 보냈습니다. 이메일을 확인한 뒤 로그인하세요.'); }).catch(e => toast(`가입 실패: ${e.message}`)).finally(() => { target.disabled = false; }); return; }
-  if (target.dataset.confirmNew !== undefined) { game = newGame(); selectedCountry = 'GER'; view = 'overview'; modal = null; render(); toast('새 게임을 시작했습니다.'); return; }
+  if (target.dataset.confirmNew !== undefined) { game = newGame(); selectedRegion = null; selectedCountry = 'GER'; view = 'overview'; modal = null; render(); toast('새 게임을 시작했습니다.'); return; }
   if (target.dataset.slot) {
     const key = STORAGE_KEY + target.dataset.slot;
     if (target.dataset.mode === 'save') { try { localStorage.setItem(key, JSON.stringify(game)); toast(`슬롯 ${target.dataset.slot}에 저장했습니다.`); } catch { toast('저장 공간을 사용할 수 없습니다.'); } }
-    else { try { const saved = JSON.parse(localStorage.getItem(key)); if (!isValidSave(saved)) throw Error('invalid'); game = saved; toast(`슬롯 ${target.dataset.slot}을 불러왔습니다.`); } catch { toast('저장 데이터를 읽을 수 없습니다.'); } }
+    else { try { const saved = JSON.parse(localStorage.getItem(key)); if (!isValidSave(saved)) throw Error('invalid'); game = upgradeSave(saved); selectedRegion = null; toast(`슬롯 ${target.dataset.slot}을 불러왔습니다.`); } catch { toast('저장 데이터를 읽을 수 없습니다.'); } }
     modal = null; render(); return;
   }
   if (target.dataset.cloudSlot) {
     const slot = Number(target.dataset.cloudSlot); target.disabled = true;
     const operation = target.dataset.mode === 'save' ? saveCloud(slot, game) : loadCloud(slot);
-    operation.then(result => { if (target.dataset.mode === 'load') { if (!isValidSave(result)) throw Error('저장 데이터 형식이 올바르지 않습니다.'); game = result; } modal = null; render(); toast(target.dataset.mode === 'save' ? `클라우드 슬롯 ${slot}에 저장했습니다.` : `클라우드 슬롯 ${slot}을 불러왔습니다.`); }).catch(e => { toast(`클라우드 작업 실패: ${e.message}`); target.disabled = false; }); return;
+    operation.then(result => { if (target.dataset.mode === 'load') { if (!isValidSave(result)) throw Error('저장 데이터 형식이 올바르지 않습니다.'); game = upgradeSave(result); selectedRegion = null; } modal = null; render(); toast(target.dataset.mode === 'save' ? `클라우드 슬롯 ${slot}에 저장했습니다.` : `클라우드 슬롯 ${slot}을 불러왔습니다.`); }).catch(e => { toast(`클라우드 작업 실패: ${e.message}`); target.disabled = false; }); return;
   }
   const action = target.dataset.action;
   if (action === 'next') next();
   else if (action === 'event') { modal = 'event'; showModal(); }
   else if (action) { const result = takeAction(game, action, target.dataset.target); if (result.error) toast(result.error); else { game = result.state; render(); toast('명령이 실행되었습니다.'); } }
 });
+document.addEventListener('change', e => { if (e.target.dataset.regionOwner) { game = transferRegion(game, e.target.dataset.regionOwner, e.target.value); render(); toast('지역 소유권을 변경했습니다.'); } });
 document.addEventListener('input', e => { if (!e.target.dataset.policy) return; game = setPolicy(game, e.target.dataset.policy, e.target.value); $(`#value-${e.target.dataset.policy}`).textContent = `${game[e.target.dataset.policy]}%`; });
 document.addEventListener('submit', e => { if (e.target.id !== 'account-form') return; e.preventDefault(); const form = e.target, submit = form.querySelector('[type="submit"]'); submit.disabled = true; login(form.elements.email.value, form.elements.password.value).then(() => { modal = null; render(); toast('로그인했습니다.'); }).catch(error => toast(`로그인 실패: ${error.message}`)).finally(() => { submit.disabled = false; }); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal && modal !== 'event') { modal = null; showModal(); } if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('map-country')) { e.preventDefault(); selectedCountry = e.target.dataset.country; render(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && modal && modal !== 'event') { modal = null; showModal(); } if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('map-region')) { e.preventDefault(); selectedRegion = e.target.dataset.region; render(); } });
 $('#next-button').addEventListener('click', next);
 $('#save-button').addEventListener('click', () => openSlots('save'));
 $('#load-button').addEventListener('click', () => openSlots('load'));
 $('#account-button').addEventListener('click', () => { modal = 'account'; showModal(); });
 $('#help-button').addEventListener('click', () => { modal = 'help'; showModal(); });
 $('#new-button').addEventListener('click', () => { modal = 'new'; showModal(); });
+function zoomMap(direction) {
+  if (direction === 'reset') mapBox = { x: 0, y: 0, w: 510, h: 333 };
+  else { const factor = direction === 'in' ? .72 : 1.38, w = Math.min(510, Math.max(65, mapBox.w * factor)), h = w * 333 / 510; mapBox = { x: Math.max(0, Math.min(510 - w, mapBox.x + (mapBox.w - w) / 2)), y: Math.max(0, Math.min(333 - h, mapBox.y + (mapBox.h - h) / 2)), w, h }; }
+  const svg = $('.province-map'); if (svg) svg.setAttribute('viewBox', `${mapBox.x} ${mapBox.y} ${mapBox.w} ${mapBox.h}`);
+}
+let dragStart = null;
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.province-map')) return; dragStart = { x: e.clientX, y: e.clientY, box: { ...mapBox } }; });
+document.addEventListener('pointermove', e => { if (!dragStart) return; const svg = $('.province-map'); if (!svg) return; const rect = svg.getBoundingClientRect(); mapBox.x = Math.max(0, Math.min(510 - mapBox.w, dragStart.box.x - (e.clientX - dragStart.x) * mapBox.w / rect.width)); mapBox.y = Math.max(0, Math.min(333 - mapBox.h, dragStart.box.y - (e.clientY - dragStart.y) * mapBox.h / rect.height)); svg.setAttribute('viewBox', `${mapBox.x} ${mapBox.y} ${mapBox.w} ${mapBox.h}`); });
+document.addEventListener('pointerup', () => { dragStart = null; });
+document.addEventListener('wheel', e => { if (!e.target.closest('.province-map')) return; e.preventDefault(); zoomMap(e.deltaY < 0 ? 'in' : 'out'); }, { passive: false });
 render();

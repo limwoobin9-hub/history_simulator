@@ -1,3 +1,5 @@
+import { transferCountry, validTerritory } from './territory.js';
+
 export const COUNTRIES = {
   FRA: { name: '프랑스', flag: '🇫🇷', government: '제3공화국', relation: 100, color: '#526da3' },
   GER: { name: '독일', flag: '🇩🇪', government: '국가사회주의 체제', relation: -42, color: '#ad6564' },
@@ -12,12 +14,12 @@ const initialRelations = () => Object.fromEntries(Object.entries(COUNTRIES).filt
 
 export function newGame() {
   return {
-    version: 1, year: 1936, month: 1, turn: 0, selected: 'FRA',
+    version: 2, year: 1936, month: 1, turn: 0, selected: 'FRA',
     treasury: 16, debt: 35, gdp: 185, growth: 0, income: 0, expenses: 0,
     stability: 56, approval: 48, unemployment: 11.3, inflation: 2.1, politicalPower: 68,
     industry: 58, equipment: 82, divisions: 28, manpower: 350, tension: 17,
     tax: 28, industryBudget: 28, welfareBudget: 24, militaryBudget: 28,
-    relations: initialRelations(), flags: {}, pendingEvent: null,
+    relations: initialRelations(), flags: {}, pendingEvent: null, territory: { overrides: {} },
     log: [{ date: '1936.01', text: '프랑스 제3공화국의 새해가 시작되었다.', type: 'news' }],
     history: [{ date: '1936.01', treasury: 16, gdp: 185, unemployment: 11.3, stability: 56 }]
   };
@@ -50,6 +52,14 @@ const EVENTS = [
   event('rhineland_aftermath', '라인란트 위기의 후속 협상', '1937년 2월 · 외교', '지난해의 결정이 다시 외교 테이블에 올라왔다.', [
     { label: '안보 협의를 강화한다', hint: '영국 관계 +8 · 국고 −2', effects: { 'relations.GBR': 8, treasury: -2, stability: 2 }, flags: { security: 'cooperate' } },
     { label: '국내 문제에 집중한다', hint: '정치력 +8 · 긴장도 +2', effects: { politicalPower: 8, tension: 2 }, flags: { security: 'domestic' } }
+  ]),
+  event('anschluss', '오스트리아 합병 위기', '1938년 3월 · 중부 유럽', '독일의 오스트리아 합병 시도가 유럽의 지도를 바꾸려 한다. 프랑스의 대응을 선택하라.', [
+    { label: '영국과 항의하되 군사 개입은 하지 않는다', hint: '오스트리아의 주권 상실 · 긴장도 +7', effects: { tension: 7, 'relations.GER': -12 }, flags: { anschluss: 'accepted' }, transfers: [['AUT','GER']] },
+    { label: '군사적 억제를 선언한다', hint: '가상 역사: 합병 저지 · 안정도 −5 · 긴장도 +15', effects: { stability: -5, tension: 15, politicalPower: -20, 'relations.GER': -30 }, flags: { anschluss: 'resisted' } }
+  ]),
+  event('prague', '체코슬로바키아의 운명', '1939년 3월 · 중부 유럽', '독일의 영토 요구가 커지고 있다. 프랑스가 지원할지 결정해야 한다.', [
+    { label: '개입하지 않는다', hint: '체코 지역의 독일 점령 · 긴장도 +12', effects: { tension: 12, 'relations.GER': -15 }, flags: { prague: 'occupied' }, transfers: [['CZE','GER'],['SVK','SVK']] },
+    { label: '체코슬로바키아를 지지한다', hint: '가상 역사: 국경 유지 · 긴장도 +16 · 정치력 −25', effects: { tension: 16, politicalPower: -25 }, flags: { prague: 'defended' } }
   ])
 ];
 
@@ -64,6 +74,9 @@ export function applyChoice(state, choiceIndex) {
     else next[key] += value;
   }
   Object.assign(next.flags, choice.flags);
+  for (const [country, owner] of choice.transfers || []) {
+    Object.assign(next, transferCountry(next, country, owner));
+  }
   next.flags['event_' + active.id] = true;
   next.pendingEvent = null;
   normalize(next);
@@ -139,7 +152,7 @@ export function advanceMonth(state) {
   normalize(s);
   const active = EVENTS.find(e => !s.flags['event_' + e.id] && (
     e.id === 'rhineland_aftermath' ? s.year === 1937 && s.month === 2 && Boolean(s.flags.rhineland) :
-    ({ rhineland: [1936, 3], election: [1936, 5], matignon: [1936, 6], spain: [1936, 7], franc: [1936, 9] }[e.id]?.join('-') === [s.year, s.month].join('-'))
+    ({ rhineland: [1936, 3], election: [1936, 5], matignon: [1936, 6], spain: [1936, 7], franc: [1936, 9], anschluss: [1938, 3], prague: [1939, 3] }[e.id]?.join('-') === [s.year, s.month].join('-'))
   ));
   if (active) { s.pendingEvent = active.id; record(s, `${active.title} — 결정 대기 중`, 'event'); }
   s.history.push({ date: dateLabel(s), treasury: s.treasury, gdp: s.gdp, unemployment: s.unemployment, stability: s.stability });
@@ -147,8 +160,14 @@ export function advanceMonth(state) {
   return s;
 }
 export const getEvent = id => EVENTS.find(e => e.id === id);
+export function upgradeSave(raw) {
+  if (!isValidSave(raw)) return null;
+  if (raw.version === 2) return raw;
+  return { ...raw, version: 2, territory: { overrides: {} } };
+}
 export function isValidSave(raw) {
-  if (!raw || raw.version !== 1 || !Number.isInteger(raw.year) || raw.year < 1936 ||
+  if (!raw || ![1, 2].includes(raw.version) || (raw.version === 2 && !validTerritory(raw.territory)) ||
+      !Number.isInteger(raw.year) || raw.year < 1936 ||
       !Number.isInteger(raw.month) || raw.month < 1 || raw.month > 12 || !Number.isInteger(raw.turn) || raw.turn < 0 ||
       typeof raw.flags !== 'object' || raw.flags === null || Array.isArray(raw.flags) ||
       typeof raw.relations !== 'object' || raw.relations === null ||
