@@ -1,4 +1,4 @@
-import { transferCountry, validTerritory } from './territory.js';
+import { transferCountry, transferMapchartGroup, validTerritory } from './territory.js';
 
 export const COUNTRIES = {
   FRA: { name: '프랑스', flag: '🇫🇷', government: '제3공화국', relation: 100, color: '#526da3' },
@@ -57,9 +57,17 @@ const EVENTS = [
     { label: '영국과 항의하되 군사 개입은 하지 않는다', hint: '오스트리아의 주권 상실 · 긴장도 +7', effects: { tension: 7, 'relations.GER': -12 }, flags: { anschluss: 'accepted' }, transfers: [['AUT','GER']] },
     { label: '군사적 억제를 선언한다', hint: '가상 역사: 합병 저지 · 안정도 −5 · 긴장도 +15', effects: { stability: -5, tension: 15, politicalPower: -20, 'relations.GER': -30 }, flags: { anschluss: 'resisted' } }
   ]),
+  event('munich', '뮌헨 협정과 주데텐란트', '1938년 10월 · 체코슬로바키아', '독일이 체코슬로바키아의 국경 지대를 요구한다. 프랑스의 결정에 따라 지역 지도가 달라진다.', [
+    { label: '영국과 협정을 수용한다', hint: '주데텐란트의 독일 편입 · 긴장도 +10', effects: { tension: 10, approval: -4, 'relations.GER': -10 }, flags: { munich: 'accepted' }, mapTransfers: [['GER',['North_Sudetenland','South_Sudetenland']]] },
+    { label: '체코슬로바키아의 국경을 보장한다', hint: '가상 역사: 국경 유지 · 정치력 −20', effects: { tension: 17, politicalPower: -20, 'relations.GER': -25 }, flags: { munich: 'resisted' } }
+  ]),
   event('prague', '체코슬로바키아의 운명', '1939년 3월 · 중부 유럽', '독일의 영토 요구가 커지고 있다. 프랑스가 지원할지 결정해야 한다.', [
-    { label: '개입하지 않는다', hint: '체코 지역의 독일 점령 · 긴장도 +12', effects: { tension: 12, 'relations.GER': -15 }, flags: { prague: 'occupied' }, transfers: [['CZE','GER'],['SVK','SVK']] },
+    { label: '개입하지 않는다', hint: '체코 점령 · 슬로바키아 분리 · 긴장도 +12', effects: { tension: 12, 'relations.GER': -15 }, flags: { prague: 'occupied' }, transfers: [['CZE','GER'],['SVK','SVK']], mapTransfers: [['HUN',['Podkarpatská_Rus']]] },
     { label: '체코슬로바키아를 지지한다', hint: '가상 역사: 국경 유지 · 긴장도 +16 · 정치력 −25', effects: { tension: 16, politicalPower: -25 }, flags: { prague: 'defended' } }
+  ]),
+  event('poland', '폴란드 침공', '1939년 9월 · 유럽 전쟁', '독일이 폴란드를 침공하고 소련도 동부로 진입한다. 프랑스는 동맹 의무를 결정해야 한다.', [
+    { label: '폴란드를 위해 참전한다', hint: '독일 관계 −30 · 긴장도 +22', effects: { tension: 22, 'relations.GER': -30, stability: -5 }, flags: { poland: 'intervened' }, transfers: [['DAN','GER']], mapTransfers: [['GER',['Gdynia','Poznan','Płock','Lodz','Warszawa','Kielce','Kraków','Lublin']],['SOV',['Białystok','Nowogródek','Polesie','Wołyn','Wilejka','Wilno','Lwów','Stanisławów']]] },
+    { label: '전쟁을 피한다', hint: '지지도 −12 · 긴장도 +18', effects: { tension: 18, approval: -12 }, flags: { poland: 'abandoned' }, transfers: [['DAN','GER']], mapTransfers: [['GER',['Gdynia','Poznan','Płock','Lodz','Warszawa','Kielce','Kraków','Lublin']],['SOV',['Białystok','Nowogródek','Polesie','Wołyn','Wilejka','Wilno','Lwów','Stanisławów']]] }
   ])
 ];
 
@@ -77,6 +85,8 @@ export function applyChoice(state, choiceIndex) {
   for (const [country, owner] of choice.transfers || []) {
     Object.assign(next, transferCountry(next, country, owner));
   }
+  for (const [owner, states] of choice.mapTransfers || [])
+    Object.assign(next, transferMapchartGroup(next, states, owner));
   next.flags['event_' + active.id] = true;
   next.pendingEvent = null;
   normalize(next);
@@ -149,10 +159,14 @@ export function advanceMonth(state) {
     record(s, '스페인 지원을 둘러싼 독일과의 관계가 악화되었다.', 'news');
   }
   if (s.year === 1937 && s.month === 1) { s.tension += 2; record(s, '유럽 각국의 재무장으로 긴장이 높아졌다.', 'news'); }
+  if (s.year === 1938 && s.month === 11 && s.flags.munich === 'accepted') {
+    Object.assign(s, transferMapchartGroup(s, ['Southern_Slovakia'], 'HUN'));
+    record(s, '제1차 빈 중재: 슬로바키아 남부의 소유권이 헝가리로 변경되었다.', 'news');
+  }
   normalize(s);
   const active = EVENTS.find(e => !s.flags['event_' + e.id] && (
     e.id === 'rhineland_aftermath' ? s.year === 1937 && s.month === 2 && Boolean(s.flags.rhineland) :
-    ({ rhineland: [1936, 3], election: [1936, 5], matignon: [1936, 6], spain: [1936, 7], franc: [1936, 9], anschluss: [1938, 3], prague: [1939, 3] }[e.id]?.join('-') === [s.year, s.month].join('-'))
+    ({ rhineland: [1936, 3], election: [1936, 5], matignon: [1936, 6], spain: [1936, 7], franc: [1936, 9], anschluss: [1938, 3], munich: [1938, 10], prague: [1939, 3], poland: [1939, 9] }[e.id]?.join('-') === [s.year, s.month].join('-'))
   ));
   if (active) { s.pendingEvent = active.id; record(s, `${active.title} — 결정 대기 중`, 'event'); }
   s.history.push({ date: dateLabel(s), treasury: s.treasury, gdp: s.gdp, unemployment: s.unemployment, stability: s.stability });
