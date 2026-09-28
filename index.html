@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101923">
+  <meta name="description" content="1936년 프랑스를 운영하는 역사 전략 시뮬레이터">
+  <title>국가의 시간 · 1936</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">◈</span><div><strong>국가의 시간</strong><small>THE STATE OF HISTORY · 1936</small></div></div>
+      <div class="top-center"><span class="era-tag">시나리오 01</span><span id="top-date">1936.01</span><span class="top-divider"></span><span>프랑스 제3공화국</span></div>
+      <div class="top-actions"><button id="account-button" type="button" class="ghost">로그인</button><button id="save-button" type="button" class="ghost">저장</button><button id="load-button" type="button" class="ghost">불러오기</button><button id="help-button" type="button" class="icon-button" aria-label="게임 설명">?</button></div>
+    </header>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nation"><span class="flag-round">🇫🇷</span><div><span class="eyebrow">플레이 국가</span><h1>프랑스</h1><span class="muted">제3공화국 · 파리</span></div></div>
+        <div class="side-label">국가 운영</div>
+        <nav class="navigation" aria-label="게임 화면">
+          <button class="nav-item active" data-view="overview">◈ <span>상황실</span></button>
+          <button class="nav-item" data-view="economy">▦ <span>경제 · 예산</span></button>
+          <button class="nav-item" data-view="politics">⚑ <span>정치 · 사회</span></button>
+          <button class="nav-item" data-view="military">⛨ <span>군사 · 생산</span></button>
+          <button class="nav-item" data-view="diplomacy">◇ <span>외교</span></button>
+          <button class="nav-item" data-view="chronicle">▤ <span>연대기</span></button>
+        </nav>
+        <div class="sidebar-bottom"><span class="status-dot"></span><span>1936년 시나리오 · 로컬 플레이</span><button id="new-button" class="text-button">새 게임</button></div>
+      </aside>
+      <main class="workspace" id="workspace" tabindex="-1"></main>
+      <aside class="rightbar">
+        <div class="rightbar-head"><span class="eyebrow">WORLD BRIEFING</span><h2>세계 정세</h2></div>
+        <div id="world-briefing"></div>
+        <div class="rightbar-head section-gap"><span class="eyebrow">CHRONICLE</span><h2>최근 기록</h2></div>
+        <div id="recent-log" class="recent-log"></div>
+      </aside>
+    </div>
+    <div class="turnbar"><span class="turn-hint">한 턴은 한 달입니다. 예산 조정과 행동을 마친 뒤 시간을 진행하세요.</span><div class="turn-controls"><span id="turn-counter">TURN 00</span><button id="next-button" class="primary">다음 달로 진행 <span aria-hidden="true">→</span></button></div></div>
+  </div>
+  <div id="overlay" class="overlay hidden" aria-live="polite"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
