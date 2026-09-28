@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { newGame, advanceMonth, applyChoice, setPolicy, takeAction, isValidSave, upgradeSave } from '../src/engine.js';
-import { REGIONS, ownerOf, transferRegion } from '../src/territory.js';
+import { REGIONS, HISTORICAL_BY_ID, ownerOf, historicOwnerOf, provinceOwnerOf, transferRegion } from '../src/territory.js';
 
 test('1936년 3월 사건은 진행을 멈추고 선택에 따라 후속 수치가 변한다', () => {
   let state = advanceMonth(newGame());
@@ -62,16 +62,39 @@ test('1938년과 1939년의 선택은 지역 소유권을 갈라 놓는다', () 
   }
   assert.equal(state.pendingEvent, 'anschluss');
   const vienna = REGIONS.find(region => region[1] === 'Wien');
-  assert.equal(ownerOf(applyChoice(state, 0), vienna), 'GER');
-  assert.equal(ownerOf(applyChoice(state, 1), vienna), 'AUT');
-  const edited = transferRegion(state, vienna[0], 'FRA');
-  assert.equal(ownerOf(applyChoice(edited, 0), vienna), 'FRA');
+  const austria = HISTORICAL_BY_ID.get('305');
+  assert.equal(historicOwnerOf(applyChoice(state, 0), austria), 'GER');
+  assert.equal(historicOwnerOf(applyChoice(state, 1), austria), 'AUT');
+  const edited = transferRegion(state, `305:${vienna[0]}`, 'FRA');
+  assert.equal(provinceOwnerOf(applyChoice(edited, 0), austria, vienna), 'FRA');
   state = applyChoice(state, 0);
   while (state.year < 1939 || state.month < 3) {
     state = state.pendingEvent ? applyChoice(state, 0) : advanceMonth(state);
   }
   const prague = REGIONS.find(region => region[1] === 'Prague');
   assert.equal(state.pendingEvent, 'prague');
-  assert.equal(ownerOf(applyChoice(state, 0), prague), 'GER');
-  assert.equal(ownerOf(applyChoice(state, 1), prague), 'CZE');
+  assert.equal(provinceOwnerOf(applyChoice(state, 0), HISTORICAL_BY_ID.get('315'), prague), 'GER');
+  assert.equal(provinceOwnerOf(applyChoice(state, 1), HISTORICAL_BY_ID.get('315'), prague), 'CZE');
+});
+test('1936년 기준 동프로이센·실레시아와 폴란드·단치히를 구분한다', () => {
+  function contains(country, [x, y]) {
+    return country[2].some(polygon => polygon.reduce((inside, ring) => {
+      let hit = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const a = ring[i], b = ring[j];
+        if ((a[1] > y) !== (b[1] > y) &&
+            x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) hit = !hit;
+      }
+      return inside !== hit;
+    }, false));
+  }
+  const germany = HISTORICAL_BY_ID.get('255');
+  const poland = HISTORICAL_BY_ID.get('290');
+  const danzig = HISTORICAL_BY_ID.get('291');
+  assert.ok(contains(germany, [20.5, 54.7])); // Königsberg
+  assert.ok(contains(germany, [17.04, 51.1])); // Breslau
+  assert.ok(contains(poland, [16.93, 52.41])); // Poznań
+  assert.ok(contains(poland, [21.01, 52.23])); // Warsaw
+  assert.ok(contains(danzig, [18.65, 54.35]));
+  assert.ok(!contains(poland, [20.5, 54.7]));
 });

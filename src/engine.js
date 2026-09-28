@@ -19,7 +19,7 @@ export function newGame() {
     stability: 56, approval: 48, unemployment: 11.3, inflation: 2.1, politicalPower: 68,
     industry: 58, equipment: 82, divisions: 28, manpower: 350, tension: 17,
     tax: 28, industryBudget: 28, welfareBudget: 24, militaryBudget: 28,
-    relations: initialRelations(), flags: {}, pendingEvent: null, territory: { overrides: {} },
+    relations: initialRelations(), flags: {}, pendingEvent: null, territory: { overrides: {}, countries: {} },
     log: [{ date: '1936.01', text: '프랑스 제3공화국의 새해가 시작되었다.', type: 'news' }],
     history: [{ date: '1936.01', treasury: 16, gdp: 185, unemployment: 11.3, stability: 56 }]
   };
@@ -163,7 +163,7 @@ export const getEvent = id => EVENTS.find(e => e.id === id);
 export function upgradeSave(raw) {
   if (!isValidSave(raw)) return null;
   if (raw.version === 2) return raw;
-  return { ...raw, version: 2, territory: { overrides: {} } };
+  return { ...raw, version: 2, territory: { overrides: {}, countries: {} } };
 }
 export function isValidSave(raw) {
   if (!raw || ![1, 2].includes(raw.version) || (raw.version === 2 && !validTerritory(raw.territory)) ||
