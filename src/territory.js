@@ -13,7 +13,7 @@ export const OWNER_LABELS = {
   BEL: '벨기에', NLD: '네덜란드', CHE: '스위스', DNK: '덴마크',
   SWE: '스웨덴', NOR: '노르웨이', PRT: '포르투갈', IRL: '아일랜드',
   GRC: '그리스', TUR: '튀르키예', ALB: '알바니아', BGR: '불가리아',
-  LUX: '룩셈부르크', DAN: '단치히', MLT: '몰타', CYP: '키프로스',
+  LUX: '룩셈부르크', DAN: '단치히', VIC: '비시 프랑스', HRV: '크로아티아 독립국', MLT: '몰타', CYP: '키프로스',
   MOR: '모로코', IRQ: '이라크', SYR: '시리아', IRN: '이란',
   LBN: '레바논', PAL: '팔레스타인 위임통치령', JOR: '트란스요르단', KWT: '쿠웨이트'
 };
@@ -24,7 +24,7 @@ export const OWNER_COLORS = {
   ROU:'#b49b6e', HUN:'#aaa078', BEL:'#8e9e82', NLD:'#b29277', CHE:'#a77677',
   DNK:'#8ba797', SWE:'#8fabc0', NOR:'#8da4ad', PRT:'#b69079', IRL:'#92a88d',
   GRC:'#829fb8', TUR:'#a48e77', ALB:'#968f83', BGR:'#9aa485',
-  LUX:'#c4af91', DAN:'#d7b991', IRQ:'#bba57a', IRN:'#a1937a'
+  LUX:'#c4af91', DAN:'#d7b991', VIC:'#7a91aa', HRV:'#b8a488', IRQ:'#bba57a', IRN:'#a1937a'
 };
 Object.assign(OWNER_COLORS, {
   LBN:'#9aaeb2', PAL:'#a2aaa0', JOR:'#ad9c7a', KWT:'#adad86'

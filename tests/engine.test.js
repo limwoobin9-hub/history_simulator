@@ -112,3 +112,60 @@ test('시간 진행과 역사 선택이 첨부 지도의 지역색을 바꾸며 
   assert.equal(owner('West_Papua', globalEdit), 'GBR');
   assert.equal(isValidSave(globalEdit), true);
 });
+
+function until(state, year, month) {
+  while (state.year < year || (state.year === year && state.month < month))
+    state = state.pendingEvent ? applyChoice(state, 0) : advanceMonth(state);
+  return state;
+}
+const atlasOwner = (state, id) => mapchartOwnerOf(state, MAPCHART_BY_ID.get(id));
+
+test('1938~40년 지역 이동은 월과 분기를 따르며 해외 식민지는 본토 점령에 포함되지 않는다', () => {
+  let state = until(newGame(), 1938, 10);
+  assert.equal(atlasOwner(state, 'Tešínsko'), 'CZE');
+  state = applyChoice(state, 0);
+  assert.equal(atlasOwner(state, 'Tešínsko'), 'POL');
+  state = until(state, 1939, 3);
+  assert.equal(atlasOwner(state, 'Klaipeda'), 'GER');
+  state = until(state, 1939, 9);
+  state = applyChoice(state, 0);
+  assert.equal(atlasOwner(state, 'Katowice'), 'GER');
+  assert.equal(atlasOwner(state, 'Wilno'), 'SOV');
+  state = advanceMonth(state);
+  assert.equal(atlasOwner(state, 'Wilno'), 'LTU');
+  state = until(state, 1940, 5);
+  assert.equal(atlasOwner(state, 'Holland'), 'GER');
+  assert.equal(atlasOwner(state, 'Suriname'), 'NLD');
+  state = until(state, 1940, 6);
+  assert.equal(atlasOwner(state, 'Harju'), 'SOV');
+  assert.equal(atlasOwner(state, 'Bessarabia'), 'SOV');
+  assert.equal(state.pendingEvent, 'france1940');
+  const armistice = applyChoice(state, 0);
+  const resisted = applyChoice(state, 1);
+  assert.equal(atlasOwner(armistice, 'Ile_de_France'), 'GER');
+  assert.equal(atlasOwner(armistice, 'Rhone'), 'VIC');
+  assert.equal(atlasOwner(resisted, 'Ile_de_France'), 'FRA');
+  assert.equal(atlasOwner(armistice, 'Algiers'), 'FRA');
+  const edited = transferMapchartState(armistice, 'Rhone', 'ESP');
+  assert.equal(atlasOwner(until(edited, 1942, 11), 'Rhone'), 'ESP');
+});
+
+test('1941년 발칸 분할과 1944~45년 해방은 지역별로 변하고 저장 가능하다', () => {
+  let state = until(newGame(), 1941, 4);
+  assert.equal(atlasOwner(state, 'Croatia'), 'HRV');
+  assert.equal(atlasOwner(state, 'Macedonia'), 'BGR');
+  assert.equal(atlasOwner(state, 'Serbia'), 'GER');
+  state = until(state, 1941, 7);
+  assert.equal(atlasOwner(state, 'Harju'), 'GER');
+  assert.equal(atlasOwner(state, 'Bessarabia'), 'ROU');
+  state = until(state, 1944, 10);
+  assert.equal(atlasOwner(state, 'Harju'), 'SOV');
+  assert.equal(atlasOwner(state, 'Kurzeme'), 'GER');
+  state = until(state, 1945, 5);
+  assert.equal(atlasOwner(state, 'Kurzeme'), 'SOV');
+  assert.equal(atlasOwner(state, 'Croatia'), 'YUG');
+  assert.equal(atlasOwner(state, 'Königsberg'), 'SOV');
+  assert.equal(atlasOwner(state, 'Warszawa'), 'POL');
+  assert.equal(atlasOwner(state, 'Tešínsko'), 'CZE');
+  assert.equal(isValidSave(JSON.parse(JSON.stringify(state))), true);
+});

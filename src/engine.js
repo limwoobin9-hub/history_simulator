@@ -1,4 +1,5 @@
 import { transferCountry, transferMapchartGroup, validTerritory } from './territory.js';
+import { applyBorderTimeline } from './borderTimeline.js';
 
 export const COUNTRIES = {
   FRA: { name: '프랑스', flag: '🇫🇷', government: '제3공화국', relation: 100, color: '#526da3' },
@@ -58,7 +59,7 @@ const EVENTS = [
     { label: '군사적 억제를 선언한다', hint: '가상 역사: 합병 저지 · 안정도 −5 · 긴장도 +15', effects: { stability: -5, tension: 15, politicalPower: -20, 'relations.GER': -30 }, flags: { anschluss: 'resisted' } }
   ]),
   event('munich', '뮌헨 협정과 주데텐란트', '1938년 10월 · 체코슬로바키아', '독일이 체코슬로바키아의 국경 지대를 요구한다. 프랑스의 결정에 따라 지역 지도가 달라진다.', [
-    { label: '영국과 협정을 수용한다', hint: '주데텐란트의 독일 편입 · 긴장도 +10', effects: { tension: 10, approval: -4, 'relations.GER': -10 }, flags: { munich: 'accepted' }, mapTransfers: [['GER',['North_Sudetenland','South_Sudetenland']]] },
+    { label: '영국과 협정을 수용한다', hint: '주데텐란트의 독일 편입 · 긴장도 +10', effects: { tension: 10, approval: -4, 'relations.GER': -10 }, flags: { munich: 'accepted' }, mapTransfers: [['GER',['North_Sudetenland','South_Sudetenland']],['POL',['Tešínsko']]] },
     { label: '체코슬로바키아의 국경을 보장한다', hint: '가상 역사: 국경 유지 · 정치력 −20', effects: { tension: 17, politicalPower: -20, 'relations.GER': -25 }, flags: { munich: 'resisted' } }
   ]),
   event('prague', '체코슬로바키아의 운명', '1939년 3월 · 중부 유럽', '독일의 영토 요구가 커지고 있다. 프랑스가 지원할지 결정해야 한다.', [
@@ -66,8 +67,12 @@ const EVENTS = [
     { label: '체코슬로바키아를 지지한다', hint: '가상 역사: 국경 유지 · 긴장도 +16 · 정치력 −25', effects: { tension: 16, politicalPower: -25 }, flags: { prague: 'defended' } }
   ]),
   event('poland', '폴란드 침공', '1939년 9월 · 유럽 전쟁', '독일이 폴란드를 침공하고 소련도 동부로 진입한다. 프랑스는 동맹 의무를 결정해야 한다.', [
-    { label: '폴란드를 위해 참전한다', hint: '독일 관계 −30 · 긴장도 +22', effects: { tension: 22, 'relations.GER': -30, stability: -5 }, flags: { poland: 'intervened' }, transfers: [['DAN','GER']], mapTransfers: [['GER',['Gdynia','Poznan','Płock','Lodz','Warszawa','Kielce','Kraków','Lublin']],['SOV',['Białystok','Nowogródek','Polesie','Wołyn','Wilejka','Wilno','Lwów','Stanisławów']]] },
-    { label: '전쟁을 피한다', hint: '지지도 −12 · 긴장도 +18', effects: { tension: 18, approval: -12 }, flags: { poland: 'abandoned' }, transfers: [['DAN','GER']], mapTransfers: [['GER',['Gdynia','Poznan','Płock','Lodz','Warszawa','Kielce','Kraków','Lublin']],['SOV',['Białystok','Nowogródek','Polesie','Wołyn','Wilejka','Wilno','Lwów','Stanisławów']]] }
+    { label: '폴란드를 위해 참전한다', hint: '독일 관계 −30 · 긴장도 +22', effects: { tension: 22, 'relations.GER': -30, stability: -5 }, flags: { poland: 'intervened' }, transfers: [['DAN','GER']], mapTransfers: [['GER',['Gdynia','Poznan','Płock','Lodz','Warszawa','Kielce','Kraków','Lublin','Katowice','Tešínsko']],['SOV',['Białystok','Nowogródek','Polesie','Wołyn','Wilejka','Wilno','Lwów','Stanisławów']]] },
+    { label: '전쟁을 피한다', hint: '지지도 −12 · 긴장도 +18', effects: { tension: 18, approval: -12 }, flags: { poland: 'abandoned' }, transfers: [['DAN','GER']], mapTransfers: [['GER',['Gdynia','Poznan','Płock','Lodz','Warszawa','Kielce','Kraków','Lublin','Katowice','Tešínsko']],['SOV',['Białystok','Nowogródek','Polesie','Wołyn','Wilejka','Wilno','Lwów','Stanisławów']]] }
+  ]),
+  event('france1940', '프랑스의 휴전과 항전', '1940년 6월 · 서부 전선', '독일군이 프랑스 북부와 대서양 연안을 장악했다. 프랑스 본토의 통제와 전쟁 지속 여부를 결정해야 한다.', [
+    { label: '휴전을 수용한다', hint: '북부·서부 독일 점령, 남부 비시 정권 · 안정도 −12', effects: { stability: -12, approval: -10, tension: 8 }, flags: { france1940: 'armistice' }, mapTransfers: [['GER',['Nord_Pas_de_Calais','Picardy','Normandy','Champagne','Alsace_Lorraine','Ile_de_France','Franche_Comte','Brittany','Loire','Bourgogne','Centre','Poitou']],['VIC',['Rhone','Auvergne','Limousin','Savoy','Alpes','Aquitaine','Languedoc','Bouches_du_Rhone','Midi_Pyrenees','Var','Pyrénées_Atlantiques']]] },
+    { label: '본토 방어와 항전을 계속한다', hint: '가상 역사: 프랑스 통제 유지 · 장비 −25 · 긴장도 +18', effects: { equipment: -25, stability: -8, tension: 18, 'relations.GER': -25 }, flags: { france1940: 'resisted' } }
   ])
 ];
 
@@ -163,10 +168,11 @@ export function advanceMonth(state) {
     Object.assign(s, transferMapchartGroup(s, ['Southern_Slovakia'], 'HUN'));
     record(s, '제1차 빈 중재: 슬로바키아 남부의 소유권이 헝가리로 변경되었다.', 'news');
   }
+  applyBorderTimeline(s, record);
   normalize(s);
   const active = EVENTS.find(e => !s.flags['event_' + e.id] && (
     e.id === 'rhineland_aftermath' ? s.year === 1937 && s.month === 2 && Boolean(s.flags.rhineland) :
-    ({ rhineland: [1936, 3], election: [1936, 5], matignon: [1936, 6], spain: [1936, 7], franc: [1936, 9], anschluss: [1938, 3], munich: [1938, 10], prague: [1939, 3], poland: [1939, 9] }[e.id]?.join('-') === [s.year, s.month].join('-'))
+    ({ rhineland: [1936, 3], election: [1936, 5], matignon: [1936, 6], spain: [1936, 7], franc: [1936, 9], anschluss: [1938, 3], munich: [1938, 10], prague: [1939, 3], poland: [1939, 9], france1940: [1940, 6] }[e.id]?.join('-') === [s.year, s.month].join('-'))
   ));
   if (active) { s.pendingEvent = active.id; record(s, `${active.title} — 결정 대기 중`, 'event'); }
   s.history.push({ date: dateLabel(s), treasury: s.treasury, gdp: s.gdp, unemployment: s.unemployment, stability: s.stability });
